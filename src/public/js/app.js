@@ -1,77 +1,83 @@
 const socket = io();
 
-const welcome = document.querySelector("#welcome");
-const room = document.querySelector("#room");
-const form = welcome.querySelector("form");
+const myFace = document.querySelector("#myFace");
+const muteBtn = document.querySelector("#mute");
+const cameraBtn = document.querySelector("#camera");
+const camerasSelect = document.querySelector("#cameras");
 
-room.hidden = true;
-let roomName;
+let myStream;
+let muted = false;
+let cameraOff = false;
 
-const addMessage = (message) => {
-  const ul = room.querySelector("ul");
-  const li = document.createElement("li");
-  li.innerText = message;
-  ul.appendChild(li);
+const getCameras = async () => {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cameras = devices.filter((device) => device.kind === "videoinput");
+
+    const currentCamera = myStream.getVideoTracks()?.[0];
+    if (!currentCamera) return;
+
+    cameras.forEach((camera) => {
+      const option = document.createElement("option");
+      option.value = camera.deviceId;
+      option.innerText = camera.label;
+      if (currentCamera.label === camera.label) option.selected = true;
+      camerasSelect.appendChild(option);
+    });
+  } catch (e) {
+    console.log(e);
+  }
 };
 
-const handleMessageSubmit = (event) => {
-  event.preventDefault();
-  const input = room.querySelector("#msg input");
-  const newMessage = input.value;
-  socket.emit("new_message", newMessage, roomName, () => {
-    addMessage(`You: ${newMessage}`);
-  });
-  input.value = "";
+const getMedia = async (deviceId) => {
+  const initialConstraint = { audio: true, video: { facingMode: "user" } };
+  const cameraConstraint = {
+    audio: true,
+    video: { deviceId: { exact: deviceId } },
+  };
+
+  try {
+    myStream = await navigator.mediaDevices.getUserMedia(
+      deviceId ? cameraConstraint : initialConstraint
+    );
+    myFace.srcObject = myStream;
+    if (!deviceId) await getCameras();
+  } catch (e) {
+    console.log(e);
+  }
 };
 
-const handleNicknameSubmit = (event) => {
-  event.preventDefault();
-  const input = room.querySelector("#name input");
-  const newMessage = input.value;
-  socket.emit("nickname", newMessage);
+getMedia();
+
+const handleMuteClick = () => {
+  myStream
+    .getAudioTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (!muted) {
+    muteBtn.innerText = "Unmute";
+    muted = true;
+  } else {
+    muteBtn.innerText = "Mute";
+    muted = false;
+  }
+};
+const handleCameraClick = () => {
+  myStream
+    .getVideoTracks()
+    .forEach((track) => (track.enabled = !track.enabled));
+  if (cameraOff) {
+    cameraBtn.innerText = "Turn Camera Off";
+    cameraOff = false;
+  } else {
+    cameraBtn.innerText = "Turn Camera On";
+    cameraOff = true;
+  }
 };
 
-const showRoom = () => {
-  welcome.hidden = true;
-  room.hidden = false;
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName}`;
-  const msgForm = room.querySelector("#msg");
-  const nameForm = room.querySelector("#name");
-  msgForm.addEventListener("submit", handleMessageSubmit);
-  nameForm.addEventListener("submit", handleNicknameSubmit);
+const handleCameraSelect = async () => {
+  await getMedia(camerasSelect.value);
 };
 
-const handleRoomSubmit = (event) => {
-  event.preventDefault();
-  const input = form.querySelector("input");
-  socket.emit("enter_room", input.value, showRoom);
-  roomName = input.value;
-  input.value = "";
-};
-
-form.addEventListener("submit", handleRoomSubmit);
-
-socket.on("welcome", (user, newCount) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName} (${newCount})`;
-  addMessage(`${user} joined`);
-});
-
-socket.on("bye", (left, newCount) => {
-  const h3 = room.querySelector("h3");
-  h3.innerText = `Room ${roomName} (${newCount})`;
-  addMessage(`${left} left ㅠㅠ.`);
-});
-
-socket.on("new_message", addMessage);
-socket.on("room_change", (rooms) => {
-  const roomList = welcome.querySelector("ul");
-  roomList.innerHTML = "";
-
-  rooms.forEach((room) => {
-    const li = document.createElement("li");
-    li.innerText = room;
-    roomList.append(li);
-  });
-});
+muteBtn.addEventListener("click", handleMuteClick);
+cameraBtn.addEventListener("click", handleCameraClick);
+camerasSelect.addEventListener("input", handleCameraSelect);
