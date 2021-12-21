@@ -1,12 +1,10 @@
-const socket = io();
-
 const myFace = document.querySelector("#myFace");
 const muteBtn = document.querySelector("#mute");
 const cameraBtn = document.querySelector("#camera");
 const camerasSelect = document.querySelector("#cameras");
 
 let myStream;
-let muted = false;
+let muted = true;
 let cameraOff = false;
 
 const getCameras = async () => {
@@ -40,6 +38,10 @@ const getMedia = async (deviceId) => {
     myStream = await navigator.mediaDevices.getUserMedia(
       deviceId ? cameraConstraint : initialConstraint
     );
+    // muted for default
+    myStream
+      .getAudioTracks()
+      .forEach((track) => (track.enabled = !track.enabled));
     myFace.srcObject = myStream;
     if (!deviceId) await getCameras();
   } catch (e) {
