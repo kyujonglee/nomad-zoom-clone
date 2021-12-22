@@ -1,11 +1,18 @@
+const socket = io();
+
 const myFace = document.querySelector("#myFace");
 const muteBtn = document.querySelector("#mute");
 const cameraBtn = document.querySelector("#camera");
 const camerasSelect = document.querySelector("#cameras");
+const call = document.getElementById("call");
+
+call.hidden = true;
 
 let myStream;
 let muted = true;
 let cameraOff = false;
+let roomName;
+let myPeerConnection;
 
 const getCameras = async () => {
   try {
@@ -49,8 +56,6 @@ const getMedia = async (deviceId) => {
   }
 };
 
-getMedia();
-
 const handleMuteClick = () => {
   myStream
     .getAudioTracks()
@@ -63,6 +68,7 @@ const handleMuteClick = () => {
     muted = false;
   }
 };
+
 const handleCameraClick = () => {
   myStream
     .getVideoTracks()
@@ -83,3 +89,67 @@ const handleCameraSelect = async () => {
 muteBtn.addEventListener("click", handleMuteClick);
 cameraBtn.addEventListener("click", handleCameraClick);
 camerasSelect.addEventListener("input", handleCameraSelect);
+
+// Welcome form
+
+const welcome = document.getElementById("welcome");
+const welcomeForm = welcome.querySelector("form");
+
+const initCall = async () => {
+  welcome.hidden = true;
+  call.hidden = false;
+  await getMedia();
+  makeConnection();
+};
+
+const handleWelcomeSubmit = async (event) => {
+  event.preventDefault();
+  const input = welcomeForm.querySelector("input");
+  await initCall();
+  socket.emit("join_room", input.value);
+  roomName = input.value;
+  input.value = "";
+};
+
+welcomeForm.addEventListener("submit", handleWelcomeSubmit);
+
+// Socket
+
+socket.on("welcome", async () => {
+  const offer = await myPeerConnection.createOffer();
+  await myPeerConnection.setLocalDescription(offer);
+  socket.emit("offer", offer, roomName);
+});
+socket.on("offer", async (offer) => {
+  await myPeerConnection.setRemoteDescription(offer);
+  const answer = await myPeerConnection.createAnswer();
+  await myPeerConnection.setLocalDescription(answer);
+  socket.emit("answer", answer, roomName);
+});
+socket.on("answer", async (answer) => {
+  await myPeerConnection.setRemoteDescription(answer);
+});
+socket.on("ice", async (ice) => {
+  console.log("received candidate");
+  await myPeerConnection.addIceCandidate(ice);
+});
+
+// RTC
+
+const makeConnection = () => {
+  myPeerConnection = new RTCPeerConnection();
+  myPeerConnection.addEventListener("icecandidate", handleIce);
+  myPeerConnection.addEventListener("track", handleTrack);
+  myStream
+    .getTracks()
+    .forEach((track) => myPeerConnection.addTrack(track, myStream));
+};
+
+const handleIce = (data) => {
+  socket.emit("ice", data.candidate, roomName);
+};
+const handleTrack = (data) => {
+  console.log("got an event from my peer!!");
+  console.log("Peer's Stream", data.streams[0], data.stream);
+  console.log("My Stream", myStream);
+};
