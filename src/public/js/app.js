@@ -46,9 +46,9 @@ const getMedia = async (deviceId) => {
       deviceId ? cameraConstraint : initialConstraint
     );
     // muted for default
-    myStream
-      .getAudioTracks()
-      .forEach((track) => (track.enabled = !track.enabled));
+    // myStream
+    //   .getAudioTracks()
+    //   .forEach((track) => (track.enabled = !track.enabled));
     myFace.srcObject = myStream;
     if (!deviceId) await getCameras();
   } catch (e) {
